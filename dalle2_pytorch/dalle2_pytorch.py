@@ -248,9 +248,12 @@ class XClipAdapter(BaseClipAdapter):
 
     @torch.no_grad()
     def embed_text(self, text):
-        text = text[..., :self.max_text_len]
-        text_mask = text != 0
-        encoder_output = self.clip.text_transformer(text)
+        if 'input_ids' in text:
+            encoder_output = self.clip.text_transformer(**text)
+        else:
+            text = text[..., :self.max_text_len]
+            text_mask = text != 0
+            encoder_output = self.clip.text_transformer(text)
 
         encoder_output_is_cls = encoder_output.ndim == 3
 
