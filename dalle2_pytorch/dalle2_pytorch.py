@@ -260,7 +260,7 @@ class XClipAdapter(BaseClipAdapter):
         text_cls, text_encodings = (encoder_output[:, 0], encoder_output[:, 1:]) if encoder_output_is_cls else (encoder_output, None)
         text_embed = self.clip.to_text_latent(text_cls)
 
-        if exists(text_encodings):
+        if exists(text_encodings) and not 'input_ids' in text:
             text_encodings = text_encodings.masked_fill(~text_mask[..., None], 0.)
 
         return EmbeddedText(l2norm(text_embed), text_encodings)
