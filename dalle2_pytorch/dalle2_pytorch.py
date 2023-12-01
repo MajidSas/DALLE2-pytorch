@@ -2543,7 +2543,7 @@ class Decoder(nn.Module):
         elif exists(clip):
             image_size = clip.image_size
         else:
-            raise Error('either image_size, image_sizes, or clip must be given to decoder')
+            raise ValueError('either image_size, image_sizes, or clip must be given to decoder')
 
         # channels
 
