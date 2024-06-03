@@ -2676,7 +2676,9 @@ class Decoder(nn.Module):
 
         self.lowres_conds = nn.ModuleList([])
 
-        for unet_index, use_noise, use_blur in zip(range(num_unets), use_noise_for_lowres_cond, use_blur_for_lowres_cond):
+        for unet_index in zip(range(num_unets)):
+            use_noise = False
+            use_blur = False
             # if unet_index == 0:
             #     self.lowres_conds.append(None)
             #     continue
