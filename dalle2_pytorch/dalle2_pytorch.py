@@ -2493,7 +2493,7 @@ class Decoder(nn.Module):
         image_sizes = None,                         # for cascading ddpm, image size at each stage
         random_crop_sizes = None,                   # whether to random crop the image at that stage in the cascade (super resoluting convolutions at the end may be able to generalize on smaller crops)
         use_noise_for_lowres_cond = False,          # whether to use Imagen-like noising for low resolution conditioning  
-        use_blur_for_lowres_cond = True,            # whether to use the blur conditioning used in the original cascading ddpm paper, as well as DALL-E2
+        use_blur_for_lowres_cond = False,            # whether to use the blur conditioning used in the original cascading ddpm paper, as well as DALL-E2
         lowres_downsample_first = True,             # cascading ddpm - resizes to lower resolution, then to next conditional resolution + blur
         blur_prob = 0.5,                            # cascading ddpm - when training, the gaussian blur is only applied 50% of the time
         blur_sigma = 0.6,                           # cascading ddpm - blur sigma
@@ -2578,15 +2578,15 @@ class Decoder(nn.Module):
         use_blur_for_lowres_cond = cast_tuple(use_blur_for_lowres_cond, num_unets - 1, validate = False)
 
         if len(use_noise_for_lowres_cond) < num_unets:
-            use_noise_for_lowres_cond = (False, *use_noise_for_lowres_cond)
+            use_noise_for_lowres_cond = False #(False, *use_noise_for_lowres_cond)
 
         if len(use_blur_for_lowres_cond) < num_unets:
-            use_blur_for_lowres_cond = (False, *use_blur_for_lowres_cond)
+            use_blur_for_lowres_cond = False #(False, *use_blur_for_lowres_cond)
 
-        assert not use_noise_for_lowres_cond[0], 'first unet will never need low res noise conditioning'
-        assert not use_blur_for_lowres_cond[0], 'first unet will never need low res blur conditioning'
+        #assert not use_noise_for_lowres_cond[0], 'first unet will never need low res noise conditioning'
+        #assert not use_blur_for_lowres_cond[0], 'first unet will never need low res blur conditioning'
 
-        assert num_unets == 1 or all((use_noise or use_blur) for use_noise, use_blur in zip(use_noise_for_lowres_cond[1:], use_blur_for_lowres_cond[1:]))
+        #assert num_unets == 1 or all((use_noise or use_blur) for use_noise, use_blur in zip(use_noise_for_lowres_cond[1:], use_blur_for_lowres_cond[1:]))
 
         # construct unets and vaes
 
@@ -2604,7 +2604,7 @@ class Decoder(nn.Module):
             unet_channels_out = unet_channels * (1 if not one_unet_learned_var else 2)
 
             one_unet = one_unet.cast_model_parameters(
-                lowres_cond = not is_first,
+                lowres_cond = True, #not is_first,
                 lowres_noise_cond = lowres_noise_cond,
                 cond_on_image_embeds = not unconditional and is_first,
                 cond_on_text_encodings = not unconditional and one_unet.cond_on_text_encodings,
@@ -2672,14 +2672,14 @@ class Decoder(nn.Module):
         # cascading ddpm related stuff
 
         lowres_conditions = tuple(map(lambda t: t.lowres_cond, self.unets))
-        assert lowres_conditions == (False, *((True,) * (num_unets - 1))), 'the first unet must be unconditioned (by low resolution image), and the rest of the unets must have `lowres_cond` set to True'
+        # assert lowres_conditions == (False, *((True,) * (num_unets - 1))), 'the first unet must be unconditioned (by low resolution image), and the rest of the unets must have `lowres_cond` set to True'
 
         self.lowres_conds = nn.ModuleList([])
 
         for unet_index, use_noise, use_blur in zip(range(num_unets), use_noise_for_lowres_cond, use_blur_for_lowres_cond):
-            if unet_index == 0:
-                self.lowres_conds.append(None)
-                continue
+            # if unet_index == 0:
+            #     self.lowres_conds.append(None)
+            #     continue
 
             lowres_cond = LowresConditioner(
                 downsample_first = lowres_downsample_first,
@@ -3155,12 +3155,12 @@ class Decoder(nn.Module):
         assert not (exists(inpaint_image) ^ exists(inpaint_mask)), 'inpaint_image and inpaint_mask (boolean mask of [batch, height, width]) must be both given for inpainting'
 
         img = None
-        if start_at_unet_number > 1:
+        #if start_at_unet_number > 1:
             # Then we are not generating the first image and one must have been passed in
-            assert exists(image), 'image must be passed in if starting at unet number > 1'
-            assert image.shape[0] == batch_size, 'image must have batch size of {} if starting at unet number > 1'.format(batch_size)
-            prev_unet_output_size = self.image_sizes[start_at_unet_number - 2]
-            img = resize_image_to(image, prev_unet_output_size, nearest = True)
+            #assert exists(image), 'image must be passed in if starting at unet number > 1'
+            #assert image.shape[0] == batch_size, 'image must have batch size of {} if starting at unet number > 1'.format(batch_size)
+        prev_unet_output_size = self.image_sizes[start_at_unet_number - 1]
+        img = resize_image_to(image, prev_unet_output_size, nearest = True)
 
         is_cuda = next(self.parameters()).is_cuda
 
@@ -3226,6 +3226,7 @@ class Decoder(nn.Module):
     def forward(
         self,
         image,
+        cond_image,
         text = None,
         image_embed = None,
         text_encodings = None,
@@ -3264,7 +3265,7 @@ class Decoder(nn.Module):
         assert not (self.condition_on_text_encodings and not exists(text_encodings)), 'text or text encodings must be passed into decoder if specified'
         assert not (not self.condition_on_text_encodings and exists(text_encodings)), 'decoder specified not to be conditioned on text, yet it is presented'
 
-        lowres_cond_img, lowres_noise_level = lowres_conditioner(image, target_image_size = target_image_size, downsample_image_size = self.image_sizes[unet_index - 1]) if exists(lowres_conditioner) else (None, None)
+        lowres_cond_img, lowres_noise_level = lowres_conditioner(cond_image, target_image_size = target_image_size, downsample_image_size = self.image_sizes[unet_index - 1]) if exists(lowres_conditioner) else (None, None)
         image = resize_image_to(image, target_image_size, nearest = True)
 
         if exists(random_crop_size):
