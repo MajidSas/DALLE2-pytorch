@@ -2593,7 +2593,7 @@ class Decoder(nn.Module):
         self.unets = nn.ModuleList([])
         self.vaes = nn.ModuleList([])
 
-        for ind, (one_unet, one_vae, one_unet_learned_var, lowres_noise_cond) in enumerate(zip(unets, vaes, learned_variance, use_noise_for_lowres_cond)):
+        for ind, (one_unet, one_vae, one_unet_learned_var) in enumerate(zip(unets, vaes, learned_variance)):
             assert isinstance(one_unet, Unet)
             assert isinstance(one_vae, (VQGanVAE, NullVQGanVAE))
 
@@ -2605,7 +2605,7 @@ class Decoder(nn.Module):
 
             one_unet = one_unet.cast_model_parameters(
                 lowres_cond = True, #not is_first,
-                lowres_noise_cond = lowres_noise_cond,
+                lowres_noise_cond = False,
                 cond_on_image_embeds = not unconditional and is_first,
                 cond_on_text_encodings = not unconditional and one_unet.cond_on_text_encodings,
                 channels = unet_channels,
